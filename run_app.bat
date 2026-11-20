@@ -4,5 +4,5 @@ echo ========================================================
 echo Starting XAU/USD Macro & News Directional Predictor...
 echo ========================================================
 cd /d "%~dp0"
-streamlit run app.py
+streamlit run streamlit_app.py
 pause
