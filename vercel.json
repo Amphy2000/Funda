@@ -1,0 +1,21 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/calendar",
+      "destination": "/api/calendar.py"
+    },
+    {
+      "source": "/api/signal",
+      "destination": "/api/signal.py"
+    },
+    {
+      "source": "/api/market",
+      "destination": "/api/market.py"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/$1"
+    }
+  ]
+}

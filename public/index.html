@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold Pulse AI | Autonomous Macro Signal Terminal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gold: {
+                            DEFAULT: '#F4D03F',
+                            light: '#F9E79F',
+                            dark: '#D4AC0D',
+                        },
+                        darkbg: '#0F172A',
+                        darkcard: '#1E293B',
+                        darkborder: '#334155'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0B0F19;
+            color: #F8FAFC;
+        }
+        .glow-gold {
+            box-shadow: 0 0 25px rgba(244, 208, 63, 0.15);
+        }
+        .glow-buy {
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.25);
+        }
+        .glow-sell {
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.25);
+        }
+        .glow-wait {
+            box-shadow: 0 0 30px rgba(234, 179, 8, 0.25);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-gold selection:text-black">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-darkborder/60 bg-darkbg/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🥇</span>
+                <div>
+                    <h1 class="text-lg font-extrabold tracking-tight text-white flex items-center gap-2">
+                        GOLD PULSE AI <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gold/10 text-gold border border-gold/30">TERMINAL</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Autonomous XAU/USD Macroeconomic Predictor</p>
+                </div>
+            </div>
+
+            <!-- Timezone & Live Clock Badge -->
+            <div class="flex items-center space-x-4">
+                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-darkcard border border-darkborder text-xs text-slate-300">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-gold"></i>
+                    <span id="live-wat-clock" class="font-mono font-medium text-white">--:--:-- WAT</span>
+                    <span class="text-[10px] text-emerald-400 font-semibold px-1.5 py-0.2 bg-emerald-500/10 rounded">WAT (UTC+1)</span>
+                </div>
+                <button onclick="fetchAllData()" class="p-2 rounded-lg bg-darkcard hover:bg-slate-800 border border-darkborder text-slate-300 transition-colors" title="Refresh Live Feeds">
+                    <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Live Market Tickers Banner -->
+    <section class="border-b border-darkborder/40 bg-slate-900/50 py-2.5">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div class="flex items-center space-x-6 overflow-x-auto py-1">
+                <div class="flex items-center space-x-2">
+                    <span class="text-slate-400">Gold (GC=F):</span>
+                    <span id="ticker-gold-price" class="font-bold text-white font-mono">$----.--</span>
+                    <span id="ticker-gold-chg" class="font-semibold text-slate-400 font-mono">0.00%</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-slate-400">Dollar Index (DXY):</span>
+                    <span id="ticker-dxy-price" class="font-bold text-white font-mono">---.--</span>
+                    <span id="ticker-dxy-chg" class="font-semibold text-slate-400 font-mono">0.00%</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-slate-400">US 10Y Yield:</span>
+                    <span id="ticker-yield-price" class="font-bold text-white font-mono">-.--%</span>
+                    <span id="ticker-yield-chg" class="font-semibold text-slate-400 font-mono">0.00%</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>All event release times localized to <b>West Central Africa Time</b></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 space-y-8">
+
+        <!-- HERO SIGNAL SECTION -->
+        <section class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                        🎯 Autonomous Trade Recommendation
+                    </h2>
+                    <p class="text-sm text-slate-400">Zero manual inputs required. AI evaluates macro consensus and live yields.</p>
+                </div>
+                <!-- Event Selector -->
+                <div class="flex items-center gap-2">
+                    <label for="event-select" class="text-xs text-slate-400 whitespace-nowrap">Target Event:</label>
+                    <select id="event-select" onchange="onEventSelectChange()" class="bg-darkcard border border-darkborder rounded-lg text-xs text-white px-3 py-2 focus:ring-1 focus:ring-gold outline-none max-w-[280px] sm:max-w-xs">
+                        <option value="">Loading live events...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Signal Hero Card -->
+            <div id="signal-card" class="rounded-2xl p-6 sm:p-8 border border-darkborder bg-gradient-to-br from-darkcard to-slate-900 glow-gold transition-all duration-300">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-darkborder/60">
+                    <div>
+                        <div class="flex items-center gap-2.5 mb-2">
+                            <span id="signal-period-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gold/15 text-gold border border-gold/30">Upcoming</span>
+                            <span id="signal-event-title" class="text-sm font-semibold text-slate-300">US Economic Event</span>
+                        </div>
+                        <h3 id="signal-action-text" class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+                            <span id="signal-badge-icon">⏳</span> Analyzing Market...
+                        </h3>
+                    </div>
+                    <div class="flex items-center gap-6 text-right sm:text-left md:text-right">
+                        <div>
+                            <div class="text-xs text-slate-400">Directional Confidence</div>
+                            <div id="signal-confidence" class="text-2xl font-black text-gold font-mono">--%</div>
+                        </div>
+                        <div class="border-l border-darkborder/60 pl-6">
+                            <div class="text-xs text-slate-400">Release Time (WAT)</div>
+                            <div id="signal-time-wat" class="text-xl font-bold text-white font-mono">--:-- PM WAT</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 Key Order Metric Boxes -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6">
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-darkborder/50 text-center">
+                        <span class="text-xs text-slate-400">Live Gold Price</span>
+                        <div id="signal-gold-price" class="text-xl font-extrabold text-gold font-mono mt-1">$----.--</div>
+                        <span class="text-[11px] text-slate-500">COMEX Proxy</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-darkborder/50 text-center">
+                        <span class="text-xs text-slate-400">Target (Take Profit)</span>
+                        <div id="signal-tp" class="text-xl font-extrabold text-emerald-400 font-mono mt-1">$----.--</div>
+                        <span class="text-[11px] text-emerald-400/80">+20.00 / lot</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-darkborder/50 text-center">
+                        <span class="text-xs text-slate-400">Invalidation (Stop Loss)</span>
+                        <div id="signal-sl" class="text-xl font-extrabold text-rose-400 font-mono mt-1">$----.--</div>
+                        <span class="text-[11px] text-rose-400/80">-8.00 / lot</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-darkborder/50 text-center">
+                        <span class="text-xs text-slate-400">Risk / Reward</span>
+                        <div class="text-xl font-extrabold text-blue-400 font-mono mt-1">1 : 2.5</div>
+                        <span class="text-[11px] text-blue-400/80">High Expectancy</span>
+                    </div>
+                </div>
+
+                <!-- Complete Execution Timing Windows -->
+                <div class="mt-6 p-5 rounded-xl bg-slate-900/80 border-l-4 border-gold border-r border-y border-darkborder/60">
+                    <h4 class="text-sm font-bold text-white flex items-center gap-2 mb-3">
+                        <i data-lucide="timer" class="w-4 h-4 text-gold"></i>
+                        Execution Timing Schedule (West Central Africa Time - WAT)
+                    </h4>
+                    <div class="grid md:grid-cols-2 gap-4 text-xs text-slate-300">
+                        <div class="p-3 rounded-lg bg-darkcard/60 border border-darkborder/40">
+                            <span class="font-bold text-amber-400 block mb-1">🅰️ Option 1: Pre-News Position (Before Release)</span>
+                            <p id="signal-prenew-time" class="text-slate-300 mb-1">• Entry: <b>--:-- PM WAT</b></p>
+                            <p id="signal-prenew-sl" class="text-slate-300 mb-1">• Wide Stop Loss: <b>$----.--</b> (absorbs spread blowouts)</p>
+                            <p class="text-slate-400">• Size: Cut lot size in half (<span class="text-gold font-mono">0.01 lot</span>)</p>
+                        </div>
+                        <div class="p-3 rounded-lg bg-darkcard/60 border border-darkborder/40">
+                            <span class="font-bold text-emerald-400 block mb-1">🅱️ Option 2: Post-News Confirmation (Safer)</span>
+                            <p id="signal-postnew-time" class="text-slate-300 mb-1">• Entry: <b>--:-- PM WAT</b> (5 mins after release)</p>
+                            <p id="signal-postnew-sl" class="text-slate-300 mb-1">• Tight Stop Loss: <b>$----.--</b> on 1-min pullback</p>
+                            <p class="text-slate-400">• Size: Standard <span class="text-gold font-mono">0.02 lot</span> per $1,000</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5-Point Transparent Reasoning Section -->
+                <div class="mt-6 space-y-3">
+                    <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i data-lucide="brain" class="w-4 h-4 text-purple-400"></i>
+                        Transparent Reasoning: Why the AI Suggests This Direction
+                    </h4>
+                    <div class="grid md:grid-cols-2 gap-3 text-xs">
+                        <div class="p-3.5 rounded-lg bg-darkcard/40 border-l-2 border-blue-500 border-r border-y border-darkborder/30">
+                            <span class="font-bold text-blue-400 block mb-1">📌 1. Consensus Expectation Delta</span>
+                            <p id="reason-consensus" class="text-slate-300 leading-relaxed">Analyzing forecast...</p>
+                        </div>
+                        <div class="p-3.5 rounded-lg bg-darkcard/40 border-l-2 border-amber-500 border-r border-y border-darkborder/30">
+                            <span class="font-bold text-amber-400 block mb-1">💵 2. US Dollar & Yield Transmission</span>
+                            <p id="reason-mechanism" class="text-slate-300 leading-relaxed">Analyzing yield link...</p>
+                        </div>
+                        <div class="p-3.5 rounded-lg bg-darkcard/40 border-l-2 border-emerald-500 border-r border-y border-darkborder/30">
+                            <span class="font-bold text-emerald-400 block mb-1">📈 3. Live Intermarket Confirmation</span>
+                            <p id="reason-intermarket" class="text-slate-300 leading-relaxed">Analyzing DXY momentum...</p>
+                        </div>
+                        <div class="p-3.5 rounded-lg bg-darkcard/40 border-l-2 border-purple-500 border-r border-y border-darkborder/30">
+                            <span class="font-bold text-purple-400 block mb-1">📜 4. Historical Statistical Precedent</span>
+                            <p id="reason-historical" class="text-slate-300 leading-relaxed">Analyzing past prints...</p>
+                        </div>
+                    </div>
+                    <div class="p-3.5 rounded-lg bg-rose-950/20 border-l-2 border-rose-500 border-r border-y border-darkborder/30 text-xs">
+                        <span class="font-bold text-rose-400 block mb-1">⚠️ 5. Invalidation Risk (What Would Void This Trade)</span>
+                        <p id="reason-invalidation" class="text-slate-300 leading-relaxed">Evaluating invalidation criteria...</p>
+                    </div>
+                </div>
+
+                <!-- Position Size Calculator Bar -->
+                <div class="mt-6 pt-5 border-t border-darkborder/60">
+                    <h5 class="text-xs font-semibold text-slate-400 mb-2">💼 Subscriber Position Sizing Guide</h5>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div class="p-2.5 rounded-lg bg-darkcard/50 border border-darkborder/40 text-center">
+                            <span class="text-slate-400">$500 Balance:</span>
+                            <span id="lotsize-500" class="font-mono font-bold text-emerald-400 ml-1">0.01 Lot ($8 max risk)</span>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-darkcard/50 border border-darkborder/40 text-center">
+                            <span class="text-slate-400">$1,000 Balance:</span>
+                            <span id="lotsize-1000" class="font-mono font-bold text-emerald-400 ml-1">0.02 Lot ($16 max risk)</span>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-darkcard/50 border border-darkborder/40 text-center">
+                            <span class="text-slate-400">$5,000 Balance:</span>
+                            <span id="lotsize-5000" class="font-mono font-bold text-emerald-400 ml-1">0.10 Lot ($80 max risk)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LIVE ECONOMIC CALENDAR SECTION -->
+        <section class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                        📅 Live US Economic Calendar
+                    </h2>
+                    <p class="text-sm text-slate-400">Current Week & Upcoming Next Week releases. All times in <b>West Central Africa Time (WAT)</b>.</p>
+                </div>
+                <!-- Period Filter Buttons -->
+                <div class="inline-flex rounded-lg p-1 bg-darkcard border border-darkborder text-xs">
+                    <button onclick="setCalendarPeriod('all')" id="btn-period-all" class="px-3 py-1.5 rounded-md font-semibold text-white bg-slate-800 transition-colors">All Events</button>
+                    <button onclick="setCalendarPeriod('this_week')" id="btn-period-this" class="px-3 py-1.5 rounded-md font-semibold text-slate-400 hover:text-white transition-colors">Current Week</button>
+                    <button onclick="setCalendarPeriod('next_week')" id="btn-period-next" class="px-3 py-1.5 rounded-md font-semibold text-slate-400 hover:text-white transition-colors">Next Week</button>
+                </div>
+            </div>
+
+            <!-- Calendar Table Card -->
+            <div class="rounded-xl border border-darkborder bg-darkcard overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/80 text-slate-400 uppercase font-semibold border-b border-darkborder">
+                            <tr>
+                                <th class="px-4 py-3">Week</th>
+                                <th class="px-4 py-3">Impact</th>
+                                <th class="px-4 py-3">Indicator Title</th>
+                                <th class="px-4 py-3">Date</th>
+                                <th class="px-4 py-3">Release (WAT)</th>
+                                <th class="px-4 py-3 text-right">Forecast</th>
+                                <th class="px-4 py-3 text-right">Previous</th>
+                                <th class="px-4 py-3 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calendar-table-body" class="divide-y divide-darkborder/50 text-slate-200">
+                            <tr>
+                                <td colspan="8" class="text-center py-8 text-slate-400">Fetching live economic calendar...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- COMMERCIAL VIP SUBSCRIPTION BLUEPRINT -->
+        <section class="rounded-2xl p-6 sm:p-8 border border-darkborder bg-slate-900/40 space-y-6">
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    🚀 Subscription Business & High-ROI Commercial Setup
+                </h3>
+                <p class="text-xs text-slate-400">How to monetize this terminal as a premium VIP signals and intelligence service.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-4 text-xs text-slate-300">
+                <div class="p-4 rounded-xl bg-darkcard border border-darkborder/60">
+                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold mb-3">1</div>
+                    <h4 class="font-bold text-white text-sm mb-1">Telegram Bot Automation</h4>
+                    <p class="text-slate-400">Connect this terminal's <code>/api/signal</code> to a Telegram bot. Push the exact BUY/SELL call with WAT timing directly to subscribers' phones.</p>
+                </div>
+                <div class="p-4 rounded-xl bg-darkcard border border-darkborder/60">
+                    <div class="w-8 h-8 rounded-lg bg-gold/10 text-gold flex items-center justify-center font-bold mb-3">2</div>
+                    <h4 class="font-bold text-white text-sm mb-1">Exact Copy-Paste Numbers</h4>
+                    <p class="text-slate-400">Subscribers get an exact Stop Loss, Take Profit, and lot size. It takes them 15 seconds to copy the trade into MetaTrader (MT4/MT5).</p>
+                </div>
+                <div class="p-4 rounded-xl bg-darkcard border border-darkborder/60">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold mb-3">3</div>
+                    <h4 class="font-bold text-white text-sm mb-1">High Retention Model</h4>
+                    <p class="text-slate-400">The 0.01 lot rule ensures subscribers never blow accounts on bad days, guaranteeing monthly subscription renewals ($30–$100/mo).</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-darkborder/40 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4">
+            Gold Pulse AI Terminal • Educational & Quantitative Macroeconomic Analytics • Not Financial Advice
+        </div>
+    </footer>
+
+    <!-- Terminal JavaScript Application Logic -->
+    <script>
+        // State
+        let allCalendarEvents = [];
+        let currentPeriod = 'all';
+
+        // Initialize Live Clock
+        function updateWATClock() {
+            const now = new Date();
+            // WAT is UTC+1
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const watDate = new Date(utc + (3600000 * 1));
+            
+            let hours = watDate.getHours();
+            let minutes = watDate.getMinutes();
+            let seconds = watDate.getSeconds();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // 0 is 12
+            const pad = (n) => n < 10 ? '0' + n : n;
+            
+            const timeStr = `${pad(hours)}:${pad(minutes)}:${pad(seconds)} ${ampm} WAT`;
+            const el = document.getElementById('live-wat-clock');
+            if (el) el.innerText = timeStr;
+        }
+        setInterval(updateWATClock, 1000);
+        updateWATClock();
+
+        // Fetch Live Market Tickers
+        async function fetchMarketData() {
+            try {
+                const res = await fetch('/api/market');
+                const data = await res.json();
+                if (data.status === 'success' && data.snapshot) {
+                    const snap = data.snapshot;
+                    
+                    const gold = snap['Gold (GC=F)'];
+                    if (gold && gold.current) {
+                        document.getElementById('ticker-gold-price').innerText = `$${gold.current.toFixed(2)}`;
+                        const sign = gold.change_pct > 0 ? '+' : '';
+                        const el = document.getElementById('ticker-gold-chg');
+                        el.innerText = `${sign}${gold.change_pct.toFixed(2)}%`;
+                        el.className = `font-semibold font-mono ${gold.change_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                    }
+
+                    const dxy = snap['US Dollar Index (DXY)'] || snap['US Dollar Bullish (UUP)'];
+                    if (dxy && dxy.current) {
+                        document.getElementById('ticker-dxy-price').innerText = dxy.current.toFixed(2);
+                        const sign = dxy.change_pct > 0 ? '+' : '';
+                        const el = document.getElementById('ticker-dxy-chg');
+                        el.innerText = `${sign}${dxy.change_pct.toFixed(2)}%`;
+                        el.className = `font-semibold font-mono ${dxy.change_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                    }
+
+                    const yld = snap['US 10Y Yield (^TNX)'];
+                    if (yld && yld.current) {
+                        document.getElementById('ticker-yield-price').innerText = `${yld.current.toFixed(3)}%`;
+                        const sign = yld.change_pct > 0 ? '+' : '';
+                        const el = document.getElementById('ticker-yield-chg');
+                        el.innerText = `${sign}${yld.change_pct.toFixed(2)}%`;
+                        el.className = `font-semibold font-mono ${yld.change_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`;
+                    }
+                }
+            } catch (err) {
+                console.error('Market fetch error:', err);
+            }
+        }
+
+        // Fetch Calendar Events
+        async function fetchCalendar(period = 'all') {
+            try {
+                const res = await fetch(`/api/calendar?period=${period}`);
+                const data = await res.json();
+                if (data.status === 'success' && data.events) {
+                    allCalendarEvents = data.events;
+                    renderCalendarTable(allCalendarEvents);
+                    populateEventSelect(allCalendarEvents);
+                }
+            } catch (err) {
+                console.error('Calendar fetch error:', err);
+            }
+        }
+
+        function renderCalendarTable(events) {
+            const tbody = document.getElementById('calendar-table-body');
+            if (!tbody) return;
+
+            if (!events || events.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-500">No events found for this filter.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            events.forEach((e, idx) => {
+                const isHigh = e.impact === 'High';
+                const impactBadge = isHigh 
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">🔥 HIGH</span>`
+                    : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">⚡ MED</span>`;
+                
+                const periodBadge = e.period === 'Current Week'
+                    ? `<span class="text-slate-400">Current</span>`
+                    : `<span class="text-gold">Upcoming</span>`;
+
+                html += `
+                    <tr class="hover:bg-slate-800/40 transition-colors">
+                        <td class="px-4 py-3">${periodBadge}</td>
+                        <td class="px-4 py-3">${impactBadge}</td>
+                        <td class="px-4 py-3 font-semibold text-white">${e.title}</td>
+                        <td class="px-4 py-3 text-slate-300">${e.date}</td>
+                        <td class="px-4 py-3 font-mono font-medium text-gold">${e.time}</td>
+                        <td class="px-4 py-3 text-right font-mono text-slate-300">${e.forecast || '-'}</td>
+                        <td class="px-4 py-3 text-right font-mono text-slate-400">${e.previous || '-'}</td>
+                        <td class="px-4 py-3 text-center">
+                            <button onclick="selectEventByIndex(${idx})" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-gold hover:text-black font-semibold text-[11px] transition-colors border border-darkborder">
+                                Analyze
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function populateEventSelect(events) {
+            const select = document.getElementById('event-select');
+            if (!select) return;
+            select.innerHTML = '';
+
+            events.forEach((e, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.innerText = `[${e.period === 'Current Week' ? 'Current' : 'Next'}] ${e.title} (${e.date} @ ${e.time})`;
+                select.appendChild(opt);
+            });
+        }
+
+        // Fetch Signal
+        async function fetchSignal(eventIndex = null) {
+            try {
+                const url = eventIndex !== null ? `/api/signal?event_index=${eventIndex}` : '/api/signal';
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.status === 'success' && data.signal) {
+                    renderSignal(data.signal);
+                }
+            } catch (err) {
+                console.error('Signal fetch error:', err);
+            }
+        }
+
+        function renderSignal(sig) {
+            const card = document.getElementById('signal-card');
+            const actionText = document.getElementById('signal-action-text');
+            const badgeIcon = document.getElementById('signal-badge-icon');
+            
+            document.getElementById('signal-event-title').innerText = `${sig.event_title} (${sig.event_date})`;
+            document.getElementById('signal-time-wat').innerText = sig.event_time_wat;
+            document.getElementById('signal-confidence').innerText = `${sig.confidence}%`;
+            document.getElementById('signal-gold-price').innerText = `$${sig.current_gold_price.toFixed(2)}`;
+            document.getElementById('signal-tp').innerText = `$${sig.take_profit.toFixed(2)}`;
+            document.getElementById('signal-sl').innerText = `$${sig.stop_loss.toFixed(2)}`;
+
+            // Dynamic execution windows
+            document.getElementById('signal-prenew-time').innerHTML = `• Entry: <b>${sig.pre_news_entry_time}</b>`;
+            document.getElementById('signal-prenew-sl').innerHTML = `• Wide Stop Loss: <b>$${sig.pre_news_sl.toFixed(2)}</b>`;
+            document.getElementById('signal-postnew-time').innerHTML = `• Entry: <b>${sig.post_news_entry_time}</b>`;
+            document.getElementById('signal-postnew-sl').innerHTML = `• Tight Stop Loss: <b>$${sig.stop_loss.toFixed(2)}</b>`;
+
+            // Reasons
+            if (sig.reasons) {
+                document.getElementById('reason-consensus').innerText = sig.reasons.consensus.replace(/\*\*/g, '');
+                document.getElementById('reason-mechanism').innerText = sig.reasons.mechanism.replace(/\*\*/g, '');
+                document.getElementById('reason-intermarket').innerText = sig.reasons.intermarket.replace(/\*\*/g, '');
+                document.getElementById('reason-historical').innerText = sig.reasons.historical.replace(/\*\*/g, '');
+                document.getElementById('reason-invalidation').innerText = sig.reasons.invalidation.replace(/\*\*/g, '');
+            }
+
+            // Lot sizing
+            if (sig.lot_sizing) {
+                document.getElementById('lotsize-500').innerText = sig.lot_sizing.balance_500;
+                document.getElementById('lotsize-1000').innerText = sig.lot_sizing.balance_1000;
+                document.getElementById('lotsize-5000').innerText = sig.lot_sizing.balance_5000;
+            }
+
+            // Theme card
+            card.classList.remove('glow-buy', 'glow-sell', 'glow-wait');
+            if (sig.action.includes('BUY')) {
+                badgeIcon.innerText = '🟢';
+                actionText.className = 'text-3xl sm:text-4xl font-extrabold text-emerald-400 tracking-tight flex items-center gap-3';
+                actionText.innerHTML = `<span>🟢</span> ${sig.action}`;
+                card.classList.add('glow-buy');
+            } else if (sig.action.includes('SELL')) {
+                badgeIcon.innerText = '🔴';
+                actionText.className = 'text-3xl sm:text-4xl font-extrabold text-rose-400 tracking-tight flex items-center gap-3';
+                actionText.innerHTML = `<span>🔴</span> ${sig.action}`;
+                card.classList.add('glow-sell');
+            } else {
+                badgeIcon.innerText = '🟡';
+                actionText.className = 'text-3xl sm:text-4xl font-extrabold text-amber-400 tracking-tight flex items-center gap-3';
+                actionText.innerHTML = `<span>🟡</span> ${sig.action}`;
+                card.classList.add('glow-wait');
+            }
+        }
+
+        function onEventSelectChange() {
+            const select = document.getElementById('event-select');
+            const idx = select.value;
+            if (idx !== '') {
+                fetchSignal(idx);
+            }
+        }
+
+        function selectEventByIndex(idx) {
+            const select = document.getElementById('event-select');
+            if (select) {
+                select.value = idx;
+                fetchSignal(idx);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function setCalendarPeriod(period) {
+            currentPeriod = period;
+            ['all', 'this', 'next'].forEach(p => {
+                const btn = document.getElementById(`btn-period-${p}`);
+                if (btn) {
+                    if (p === period.replace('_week', '')) {
+                        btn.className = 'px-3 py-1.5 rounded-md font-semibold text-white bg-slate-800 transition-colors';
+                    } else {
+                        btn.className = 'px-3 py-1.5 rounded-md font-semibold text-slate-400 hover:text-white transition-colors';
+                    }
+                }
+            });
+            fetchCalendar(period);
+        }
+
+        async function fetchAllData() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            if (refreshIcon) refreshIcon.classList.add('animate-spin');
+            await Promise.all([fetchMarketData(), fetchCalendar(currentPeriod), fetchSignal()]);
+            if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            fetchAllData();
+        });
+    </script>
+</body>
+</html>
