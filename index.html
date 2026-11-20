@@ -564,7 +564,15 @@
         async function fetchAllData() {
             const refreshIcon = document.getElementById('refresh-icon');
             if (refreshIcon) refreshIcon.classList.add('animate-spin');
-            await Promise.all([fetchMarketData(), fetchCalendar(currentPeriod), fetchSignal()]);
+            try {
+                await fetchMarketData();
+            } catch (e) { console.error(e); }
+            try {
+                await fetchCalendar(currentPeriod);
+            } catch (e) { console.error(e); }
+            try {
+                await fetchSignal();
+            } catch (e) { console.error(e); }
             if (refreshIcon) refreshIcon.classList.remove('animate-spin');
         }
 
