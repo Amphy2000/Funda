@@ -1,37 +1,33 @@
 """
-Production-Grade Unified WSGI Handler for Vercel Serverless.
-Fully conforms to PEP 3333 WSGI specification.
-Compatible with Vercel CLI 66+ Python runtime (WSGI/ASGI runner).
-Routes /api/calendar, /api/market, /api/signal with zero cold-start delay.
+Unified WSGI Handler for Vercel Serverless.
+All companion modules are located inside api/ directory for guaranteed bundle packaging.
 """
 
-import sys
 import os
+import sys
 import json
 import traceback
 from urllib.parse import parse_qs
 
-# Ensure root directory is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure local api folder is on sys.path
+api_dir = os.path.dirname(os.path.abspath(__file__))
+if api_dir not in sys.path:
+    sys.path.insert(0, api_dir)
 
 from calendar_feed import EconomicCalendarFeed
 from auto_predictor import AutonomousTradePredictor
 from market_data import MarketDataManager
 
-# Module-level singletons for fast execution and shared caching
 feed = EconomicCalendarFeed(default_tz="Africa/Lagos")
 predictor = AutonomousTradePredictor(tz_name="Africa/Lagos")
 market_mgr = MarketDataManager()
 
 
 def wsgi_app(environ, start_response):
-    """Standard WSGI entrypoint callable: app(environ, start_response)."""
     method = environ.get("REQUEST_METHOD", "GET").upper()
     path = environ.get("PATH_INFO", "") or ""
-    query_string = environ.get("QUERY_STRING", "") or ""
-    query = parse_qs(query_string)
+    query = parse_qs(environ.get("QUERY_STRING", "") or "")
 
-    # Standard CORS & caching response headers
     headers = [
         ("Content-Type", "application/json; charset=utf-8"),
         ("Access-Control-Allow-Origin", "*"),
@@ -40,13 +36,11 @@ def wsgi_app(environ, start_response):
         ("Cache-Control", "s-maxage=30, stale-while-revalidate=60"),
     ]
 
-    # Handle CORS preflight
     if method == "OPTIONS":
         start_response("200 OK", headers)
         return [b""]
 
     response_data = {}
-    status_code = "200 OK"
 
     try:
         if "calendar" in path:
@@ -67,10 +61,8 @@ def wsgi_app(environ, start_response):
                 try:
                     idx = int(event_idx_str)
                     all_events = feed.fetch_events(period_filter="all", impact_filter=["High", "Medium"])
-                    high_events = [e for e in all_events if e.get("impact") == "High"]
-                    event_pool = high_events if high_events else all_events
-                    if 0 <= idx < len(event_pool):
-                        target_event = event_pool[idx]
+                    if 0 <= idx < len(all_events):
+                        target_event = all_events[idx]
                 except Exception:
                     target_event = None
 
@@ -105,11 +97,10 @@ def wsgi_app(environ, start_response):
         }
 
     body = json.dumps(response_data, default=str).encode("utf-8")
-    start_response(status_code, headers)
+    start_response("200 OK", headers)
     return [body]
 
 
-# Export all common entrypoint variable names expected by Vercel
 app = wsgi_app
 application = wsgi_app
 handler = wsgi_app
