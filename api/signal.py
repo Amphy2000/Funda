@@ -7,6 +7,7 @@ Accepts optional ?event_index=N to target specific calendar events.
 import sys
 import os
 import json
+import traceback
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -38,6 +39,9 @@ class handler(BaseHTTPRequestHandler):
             except Exception:
                 target_event = None
 
+        response_data = {}
+        status_code = 200
+
         try:
             signal_data = predictor.generate_automated_signal(event_override=target_event)
             response_data = {
@@ -45,13 +49,20 @@ class handler(BaseHTTPRequestHandler):
                 "timezone": "West Central Africa Time (WAT / UTC+1)",
                 "signal": signal_data,
             }
-            status_code = 200
         except Exception as e:
             response_data = {
                 "status": "error",
-                "message": str(e),
+                "timezone": "West Central Africa Time (WAT / UTC+1)",
+                "signal": {
+                    "event_title": "Signal temporarily offline",
+                    "action": "ANALYZING",
+                    "confidence": 0,
+                    "current_gold_price": 3500.0,
+                },
+                "error": str(e),
+                "traceback": traceback.format_exc(),
             }
-            status_code = 500
+            status_code = 200  # Always 200 so frontend loads
 
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")

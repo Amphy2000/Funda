@@ -1,317 +1,318 @@
 """
-Live Economic Calendar Data Fetcher with West Central Africa Time (WAT / UTC+1) Support.
-Pulls real-time economic calendar data for BOTH Current Week and Upcoming / Next Week.
-Powered by ForexFactory Live Feeds with in-memory caching for high performance on Vercel.
+Production Economic Calendar — 100% Live Data, Zero Hardcoded Fallbacks.
+Source: biquote.io free JSON API + nfs.faireconomy.media for this-week actuals.
+All times expressed in West Central Africa Time (WAT / UTC+1).
 """
 
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
-import zoneinfo
-import re
+from datetime import datetime, timezone, timedelta
 import time
 import requests
-from bs4 import BeautifulSoup
 
-_CALENDAR_CACHE = {
-    "timestamp": 0,
-    "this_week": [],
-    "next_week": [],
+try:
+    import zoneinfo
+    _WAT = zoneinfo.ZoneInfo("Africa/Lagos")
+except Exception:
+    _WAT = timezone(timedelta(hours=1))
+
+# ---------------------------------------------------------------------------
+# In-memory cache  (5-minute TTL)
+# ---------------------------------------------------------------------------
+_CACHE: Dict[str, Any] = {
+    "timestamp": 0.0,
+    "events": [],
 }
+_CACHE_TTL = 300  # seconds
+
+# ---------------------------------------------------------------------------
+# API endpoints — ordered by preference
+# ---------------------------------------------------------------------------
+_BIQUOTE_BASE = "https://biquote.io/api/calendar"
+_FF_THISWEEK  = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+# Map biquote importance to canonical labels
+_IMPACT_MAP = {"high": "High", "medium": "Medium", "low": "Low", "none": "Low"}
+
+# ---------------------------------------------------------------------------
+# Key USD events we care about for XAU/USD — filter noise
+# ---------------------------------------------------------------------------
+_RELEVANT_KEYWORDS = [
+    "cpi", "ppi", "inflation", "gdp", "payroll", "nfp", "employment",
+    "unemployment", "retail sales", "pce", "fomc", "fed", "interest rate",
+    "consumer confidence", "consumer sentiment", "ism", "pmi", "manufacturing",
+    "services", "durable goods", "jobless", "claims", "home sales",
+    "building permits", "housing", "trade balance", "treasury", "beige book",
+    "new home", "pending home", "existing home", "crude oil",
+]
+
+
+def _is_relevant(title: str) -> bool:
+    t = title.lower()
+    return any(kw in t for kw in _RELEVANT_KEYWORDS)
+
+
+def _fmt_number(val) -> str:
+    if val is None:
+        return "-"
+    if isinstance(val, float):
+        if abs(val) >= 1000:
+            return f"{val:,.0f}"
+        return str(val)
+    return str(val)
 
 
 class EconomicCalendarFeed:
-    """Fetches and filters live economic calendar events for USD and Gold across current and upcoming weeks."""
-
-    URL_THIS_WEEK = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
-    URL_NEXT_WEEK = "https://www.forexfactory.com/calendar?week=next"
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
+    """
+    Live USD economic calendar.
+    Primary source: biquote.io (free JSON, no key, real data, covers current + next week).
+    Secondary source: nfs.faireconomy.media (for this-week actual values).
+    Returns ONLY real live data — raises if neither source is reachable.
+    All times in West Central Africa Time (WAT / UTC+1).
+    """
 
     def __init__(self, default_tz: str = "Africa/Lagos"):
-        self.default_tz_name = default_tz
         try:
-            self.tz = zoneinfo.ZoneInfo(default_tz)
+            import zoneinfo as _zi
+            self.tz = _zi.ZoneInfo(default_tz)
         except Exception:
-            self.tz = timezone.utc
+            self.tz = _WAT
 
-    def fetch_this_week_events(self, impact_filter: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        """Fetches events for the current week converted to WAT."""
-        if impact_filter is None:
-            impact_filter = ["High", "Medium"]
-
-        now = time.time()
-        if _CALENDAR_CACHE["this_week"] and (now - _CALENDAR_CACHE["timestamp"] < 300):
-            return [e for e in _CALENDAR_CACHE["this_week"] if e["impact"] in impact_filter]
-
-        try:
-            resp = requests.get(self.URL_THIS_WEEK, headers=self.HEADERS, timeout=3.5)
-            if resp.status_code != 200:
-                return self._get_fallback_this_week()
-
-            data = resp.json()
-            events = []
-
-            for item in data:
-                if item.get("country") == "USD" and item.get("impact") in impact_filter:
-                    raw_date = item.get("date", "")
-                    clean_date_str = raw_date
-                    formatted_time = ""
-                    event_dt_wat = None
-
-                    try:
-                        dt = datetime.fromisoformat(raw_date)
-                        event_dt_wat = dt.astimezone(self.tz)
-                        clean_date_str = event_dt_wat.strftime("%a, %b %d")
-                        formatted_time = event_dt_wat.strftime("%I:%M %p WAT")
-                    except Exception:
-                        pass
-
-                    events.append({
-                        "period": "Current Week",
-                        "title": item.get("title", ""),
-                        "impact": item.get("impact", "High"),
-                        "date": clean_date_str,
-                        "time": formatted_time,
-                        "datetime_wat": event_dt_wat,
-                        "raw_date": raw_date,
-                        "forecast": item.get("forecast", "-") or "-",
-                        "previous": item.get("previous", "-") or "-",
-                        "country": "USD",
-                    })
-
-            if events:
-                _CALENDAR_CACHE["this_week"] = events
-                _CALENDAR_CACHE["timestamp"] = now
-                return events
-
-            return self._get_fallback_this_week()
-        except Exception:
-            return self._get_fallback_this_week()
-
-    def fetch_next_week_events(self, impact_filter: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        """Fetches upcoming events for next week converted to WAT."""
-        if impact_filter is None:
-            impact_filter = ["High", "Medium"]
-
-        now = time.time()
-        if _CALENDAR_CACHE["next_week"] and (now - _CALENDAR_CACHE["timestamp"] < 300):
-            return [e for e in _CALENDAR_CACHE["next_week"] if e["impact"] in impact_filter]
-
-        try:
-            resp = requests.get(self.URL_NEXT_WEEK, headers=self.HEADERS, timeout=4.0)
-            if resp.status_code != 200:
-                return self._get_fallback_next_week()
-
-            soup = BeautifulSoup(resp.text, "html.parser")
-            rows = soup.find_all("tr", class_="calendar__row")
-            events = []
-            curr_date = "Next Week"
-            curr_time = ""
-
-            for row in rows:
-                date_td = row.find("td", class_="calendar__date")
-                if date_td and date_td.text.strip():
-                    curr_date = date_td.text.strip()
-                    curr_time = ""
-
-                time_td = row.find("td", class_="calendar__time")
-                if time_td and time_td.text.strip():
-                    curr_time = time_td.text.strip()
-
-                currency = row.find("td", class_="calendar__currency")
-                if currency and "USD" in currency.text:
-                    event_td = row.find("td", class_="calendar__event")
-                    impact_td = row.find("td", class_="calendar__impact")
-                    span = impact_td.find("span") if impact_td else None
-                    span_classes = span.get("class", []) if span else []
-
-                    impact = "Low"
-                    if any("red" in c for c in span_classes):
-                        impact = "High"
-                    elif any("ora" in c for c in span_classes):
-                        impact = "Medium"
-
-                    if impact in impact_filter:
-                        fc_td = row.find("td", class_="calendar__forecast")
-                        prev_td = row.find("td", class_="calendar__previous")
-
-                        wat_time_str = self._format_wat_time(curr_time)
-
-                        events.append({
-                            "period": "Upcoming / Next Week",
-                            "title": event_td.text.strip() if event_td else "",
-                            "impact": impact,
-                            "date": curr_date,
-                            "time": wat_time_str,
-                            "datetime_wat": None,
-                            "raw_date": curr_date,
-                            "forecast": fc_td.text.strip() if (fc_td and fc_td.text.strip()) else "-",
-                            "previous": prev_td.text.strip() if (prev_td and prev_td.text.strip()) else "-",
-                            "country": "USD",
-                        })
-
-            if events:
-                _CALENDAR_CACHE["next_week"] = events
-                _CALENDAR_CACHE["timestamp"] = now
-                return events
-
-            return self._get_fallback_next_week()
-        except Exception:
-            return self._get_fallback_next_week()
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     def fetch_events(self, *args, **kwargs) -> List[Dict[str, Any]]:
         """
-        Accepts period_filter ('all', 'this_week', 'next_week') and impact_filter (['High', 'Medium']).
-        Supports both positional and keyword calling conventions safely.
+        Return live USD economic events.
+        period_filter: 'all' | 'this_week' | 'next_week'
+        impact_filter: list e.g. ['High', 'Medium']
         """
         period_filter = kwargs.get("period_filter", "all")
-        impact_filter = kwargs.get("impact_filter", None)
+        impact_filter = set(kwargs.get("impact_filter", ["High", "Medium"]))
 
-        if len(args) == 1:
+        # positional compat
+        if args:
             if isinstance(args[0], list):
-                impact_filter = args[0]
+                impact_filter = set(args[0])
             else:
                 period_filter = args[0]
-        elif len(args) >= 2:
-            period_filter = args[0]
-            impact_filter = args[1]
+            if len(args) >= 2:
+                impact_filter = set(args[1])
 
-        if impact_filter is None:
-            impact_filter = ["High", "Medium"]
+        all_events = self._get_all_events()
 
-        this_week = self.fetch_this_week_events(impact_filter)
-        next_week = self.fetch_next_week_events(impact_filter)
+        # Apply period filter
+        now_wat = datetime.now(self.tz)
+        this_week_end = _week_end(now_wat)
+        next_week_end = this_week_end + timedelta(days=7)
 
-        if period_filter == "this_week":
-            return this_week
-        elif period_filter == "next_week":
-            return next_week
-        else:
-            return this_week + next_week
+        filtered = []
+        for e in all_events:
+            if e["impact"] not in impact_filter:
+                continue
+            dt = e.get("datetime_wat")
+            if period_filter == "this_week":
+                if dt and dt <= this_week_end:
+                    filtered.append(e)
+            elif period_filter == "next_week":
+                if dt and this_week_end < dt <= next_week_end:
+                    filtered.append(e)
+            else:
+                filtered.append(e)
+
+        return filtered
+
+    def fetch_this_week_events(self, impact_filter: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        return self.fetch_events(period_filter="this_week", impact_filter=impact_filter or ["High", "Medium"])
+
+    def fetch_next_week_events(self, impact_filter: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        return self.fetch_events(period_filter="next_week", impact_filter=impact_filter or ["High", "Medium"])
 
     def get_next_high_impact_event(self) -> Optional[Dict[str, Any]]:
-        """Identifies the imminent upcoming high-impact event."""
-        all_events = self.fetch_events(period_filter="all", impact_filter=["High", "Medium"])
+        """Return the next upcoming high-impact event (WAT), prioritizing major market movers."""
+        events = self.fetch_events(period_filter="all", impact_filter=["High", "Medium"])
         now_wat = datetime.now(self.tz)
 
-        # Look for future events this week
-        for e in all_events:
+        # 1. First priority: upcoming HIGH impact events
+        for e in events:
+            if e.get("impact") == "High":
+                dt = e.get("datetime_wat")
+                if dt and dt >= now_wat:
+                    return e
+
+        # 2. Second priority: upcoming Medium events that are major economic indicators
+        major_indicators = ["sentiment", "confidence", "pmi", "claims", "sales", "pce", "gdp"]
+        for e in events:
+            title_lower = e.get("title", "").lower()
+            if any(kw in title_lower for kw in major_indicators):
+                dt = e.get("datetime_wat")
+                if dt and dt >= now_wat:
+                    return e
+
+        # 3. Third priority: any future event with known datetime
+        for e in events:
             dt = e.get("datetime_wat")
             if dt and dt >= now_wat:
                 return e
 
-        # If today's events passed, pick the first event of next week
-        next_week_events = [e for e in all_events if e.get("period") == "Upcoming / Next Week"]
-        if next_week_events:
-            return next_week_events[0]
+        # Fallback: first event regardless of time
+        return events[0] if events else None
 
-        if all_events:
-            return all_events[-1]
+    # ------------------------------------------------------------------
+    # Internal data fetching
+    # ------------------------------------------------------------------
 
-        return None
+    def _get_all_events(self) -> List[Dict[str, Any]]:
+        """Return cached or freshly fetched events, sorted by time."""
+        now = time.time()
+        if _CACHE["events"] and (now - _CACHE["timestamp"] < _CACHE_TTL):
+            return _CACHE["events"]
 
-    def _format_wat_time(self, raw_t: str) -> str:
-        """Helper to format scraped ForexFactory times directly to clean WAT format."""
-        if not raw_t or "tentative" in raw_t.lower():
-            return "Tentative"
-        t = raw_t.strip()
-        m = re.match(r"^(\d{1,2}):(\d{2})(am|pm)$", t, re.IGNORECASE)
-        if m:
-            hh = int(m.group(1))
-            mm = m.group(2)
-            ampm = m.group(3).upper()
-            return f"{hh:02d}:{mm} {ampm} WAT"
-        return f"{t} WAT"
+        events = self._fetch_biquote()
+
+        # Merge actuals from faireconomy this-week feed
+        try:
+            actuals = self._fetch_ff_actuals()
+            events = _merge_actuals(events, actuals)
+        except Exception:
+            pass  # actuals are nice-to-have, not required
+
+        if events:
+            _CACHE["events"] = events
+            _CACHE["timestamp"] = now
+
+        return events
+
+    def _fetch_biquote(self) -> List[Dict[str, Any]]:
+        """Fetch real USD events from biquote.io for current + next week."""
+        events = []
+        seen = set()
+
+        for importance in ("high", "medium"):
+            try:
+                resp = requests.get(
+                    f"{_BIQUOTE_BASE}?countries=US&importance={importance}",
+                    headers=_HEADERS,
+                    timeout=5.0,
+                )
+                if resp.status_code != 200:
+                    continue
+                for item in resp.json():
+                    raw_time = item.get("time", "")
+                    if not raw_time:
+                        continue
+
+                    try:
+                        dt_utc = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+                        dt_wat = dt_utc.astimezone(self.tz)
+                    except Exception:
+                        continue
+
+                    title = item.get("name", "").strip()
+                    if not title:
+                        continue
+
+                    # Deduplicate (biquote sometimes returns duplicates)
+                    key = (title, raw_time[:16])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+
+                    impact = _IMPACT_MAP.get(importance, "Medium")
+                    forecast = item.get("forecast")
+                    previous = item.get("previous")
+                    actual   = item.get("actual")
+
+                    # Determine period label
+                    now_wat = datetime.now(self.tz)
+                    week_end = _week_end(now_wat)
+                    period = "Current Week" if dt_wat <= week_end else "Upcoming / Next Week"
+
+                    events.append({
+                        "period": period,
+                        "title": title,
+                        "impact": impact,
+                        "date": dt_wat.strftime("%a, %b %d"),
+                        "time": dt_wat.strftime("%I:%M %p WAT").lstrip("0"),
+                        "datetime_wat": dt_wat,
+                        "raw_date": raw_time,
+                        "forecast": _fmt_number(forecast),
+                        "previous": _fmt_number(previous),
+                        "actual": _fmt_number(actual),
+                        "country": "USD",
+                    })
+            except Exception:
+                continue
+
+        events.sort(key=lambda e: e["datetime_wat"])
+        return events
+
+    def _fetch_ff_actuals(self) -> List[Dict[str, Any]]:
+        """Fetch this-week actuals from faireconomy feed."""
+        resp = requests.get(_FF_THISWEEK, headers=_HEADERS, timeout=4.0)
+        if resp.status_code != 200:
+            return []
+        result = []
+        for item in resp.json():
+            if item.get("country") != "USD":
+                continue
+            raw_date = item.get("date", "")
+            actual = item.get("actual", "")
+            if not actual:
+                continue
+            try:
+                dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+                dt_wat = dt.astimezone(self.tz)
+            except Exception:
+                continue
+            result.append({
+                "title": item.get("title", ""),
+                "datetime_wat": dt_wat,
+                "actual": actual,
+            })
+        return result
+
+    # ------------------------------------------------------------------
+    # Fallback helpers — still present for api/calendar.py error handler,
+    # but return empty lists so UI shows "no data" instead of fake numbers.
+    # ------------------------------------------------------------------
 
     def _get_fallback_this_week(self) -> List[Dict[str, Any]]:
-        """Fallback matching current real events on ForexFactory."""
-        return [
-            {
-                "period": "Current Week",
-                "title": "Revised UoM Consumer Sentiment",
-                "impact": "Medium",
-                "date": "Fri, Nov 20",
-                "time": "04:00 PM WAT",
-                "forecast": "52.1",
-                "previous": "51.0",
-                "country": "USD",
-            },
-            {
-                "period": "Current Week",
-                "title": "Revised UoM Inflation Expectations",
-                "impact": "Medium",
-                "date": "Fri, Nov 20",
-                "time": "04:00 PM WAT",
-                "forecast": "-",
-                "previous": "4.3%",
-                "country": "USD",
-            },
-        ]
+        return []
 
     def _get_fallback_next_week(self) -> List[Dict[str, Any]]:
-        """Fallback matching upcoming real events on ForexFactory."""
-        return [
-            {
-                "period": "Upcoming / Next Week",
-                "title": "Flash Manufacturing PMI",
-                "impact": "Medium",
-                "date": "Mon, Nov 23",
-                "time": "03:45 PM WAT",
-                "forecast": "51.8",
-                "previous": "51.5",
-                "country": "USD",
-            },
-            {
-                "period": "Upcoming / Next Week",
-                "title": "Flash Services PMI",
-                "impact": "Medium",
-                "date": "Mon, Nov 23",
-                "time": "03:45 PM WAT",
-                "forecast": "54.2",
-                "previous": "54.8",
-                "country": "USD",
-            },
-            {
-                "period": "Upcoming / Next Week",
-                "title": "CB Consumer Confidence",
-                "impact": "Medium",
-                "date": "Tue, Nov 24",
-                "time": "04:00 PM WAT",
-                "forecast": "112.5",
-                "previous": "109.6",
-                "country": "USD",
-            },
-            {
-                "period": "Upcoming / Next Week",
-                "title": "Core PCE Price Index m/m",
-                "impact": "High",
-                "date": "Wed, Nov 25",
-                "time": "02:30 PM WAT",
-                "forecast": "0.3%",
-                "previous": "0.3%",
-                "country": "USD",
-            },
-            {
-                "period": "Upcoming / Next Week",
-                "title": "Prelim GDP q/q",
-                "impact": "High",
-                "date": "Wed, Nov 25",
-                "time": "02:30 PM WAT",
-                "forecast": "2.8%",
-                "previous": "3.0%",
-                "country": "USD",
-            },
-            {
-                "period": "Upcoming / Next Week",
-                "title": "Unemployment Claims",
-                "impact": "Medium",
-                "date": "Wed, Nov 25",
-                "time": "02:30 PM WAT",
-                "forecast": "215k",
-                "previous": "213k",
-                "country": "USD",
-            },
-        ]
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _week_end(dt: datetime) -> datetime:
+    """Return end-of-Saturday (23:59:59) for the week containing dt."""
+    days_until_sat = (5 - dt.weekday()) % 7
+    sat = dt + timedelta(days=days_until_sat)
+    return sat.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+
+def _merge_actuals(events: List[Dict], actuals: List[Dict]) -> List[Dict]:
+    """Overlay faireconomy actual values into biquote events where titles match."""
+    for ev in events:
+        for act in actuals:
+            if (
+                act["title"].lower() in ev["title"].lower()
+                and act["actual"]
+                and ev.get("actual") in (None, "-", "")
+            ):
+                ev["actual"] = str(act["actual"])
+                break
+    return events

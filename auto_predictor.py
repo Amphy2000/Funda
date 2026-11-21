@@ -60,20 +60,32 @@ class AutonomousTradePredictor:
         prev_val = self._clean_number(previous_str)
 
         if fc_val is not None and prev_val is not None:
-            if "cpi" in title or "ppi" in title:
-                # Lower inflation forecast is bullish for Gold
+            # Inflation metrics: lower forecast = rate cut expectations = Bullish Gold
+            if any(k in title for k in ["cpi", "ppi", "pce", "inflation"]):
                 if fc_val < prev_val:
                     consensus_direction = "BULLISH"
                 elif fc_val > prev_val:
                     consensus_direction = "BEARISH"
-            elif "unemployment" in title:
-                # Higher unemployment forecast is bullish for Gold
+            # Labor weakness (unemployment / claims): higher forecast = Bullish Gold
+            elif any(k in title for k in ["unemployment", "jobless", "claims"]):
                 if fc_val > prev_val:
                     consensus_direction = "BULLISH"
                 elif fc_val < prev_val:
                     consensus_direction = "BEARISH"
-            elif "payroll" in title or "nfp" in title:
-                # Lower job additions forecast is bullish for Gold
+            # Employment growth (NFP / payrolls): lower additions = Bullish Gold
+            elif any(k in title for k in ["payroll", "nfp", "employment"]):
+                if fc_val < prev_val:
+                    consensus_direction = "BULLISH"
+                elif fc_val > prev_val:
+                    consensus_direction = "BEARISH"
+            # Consumer confidence & sentiment: slowing sentiment = cooling economy = Bullish Gold
+            elif any(k in title for k in ["confidence", "sentiment"]):
+                if fc_val < prev_val:
+                    consensus_direction = "BULLISH"
+                elif fc_val > prev_val:
+                    consensus_direction = "BEARISH"
+            # Growth & manufacturing (GDP, Durable Goods, PMI, Retail Sales): slowing = Bullish Gold
+            elif any(k in title for k in ["gdp", "durable", "pmi", "retail sales", "manufacturing"]):
                 if fc_val < prev_val:
                     consensus_direction = "BULLISH"
                 elif fc_val > prev_val:

@@ -7,6 +7,7 @@ Supports ?period=all, ?period=this_week, ?period=next_week
 import sys
 import os
 import json
+import traceback
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -25,6 +26,9 @@ class handler(BaseHTTPRequestHandler):
         query_params = parse_qs(parsed_url.query)
         period = query_params.get("period", ["all"])[0]
 
+        response_data = {}
+        status_code = 200
+
         try:
             events = feed.fetch_events(period_filter=period, impact_filter=["High", "Medium"])
             response_data = {
@@ -34,14 +38,21 @@ class handler(BaseHTTPRequestHandler):
                 "count": len(events),
                 "events": events,
             }
-            status_code = 200
         except Exception as e:
+            # Safe fallback - combine both week fallbacks
+            try:
+                fallback = feed._get_fallback_this_week() + feed._get_fallback_next_week()
+            except Exception:
+                fallback = []
             response_data = {
-                "status": "error",
-                "message": str(e),
-                "events": feed._get_fallback_events(),
+                "status": "fallback",
+                "period": period,
+                "timezone": "West Central Africa Time (WAT / UTC+1)",
+                "count": len(fallback),
+                "events": fallback,
+                "error": str(e),
             }
-            status_code = 500
+            status_code = 200  # Return 200 with fallback data so UI still loads
 
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
